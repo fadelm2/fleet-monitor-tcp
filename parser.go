@@ -3,10 +3,14 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
+
+	"github.com/sirupsen/logrus"
 )
 
 func ParseAndLog(data []byte) {
 	if len(data) < 20 {
+		log.WithField("length", len(data)).
+			Warn("packet ignored (too short)")
 		return
 	}
 
@@ -16,18 +20,28 @@ func ParseAndLog(data []byte) {
 
 	case 0x01:
 		imei := parseIMEI(data[4:12])
-		fmt.Println("📱 LOGIN")
-		fmt.Println("   IMEI:", imei)
+
+		log.WithFields(logrus.Fields{
+			"protocol": "LOGIN",
+			"imei":     imei,
+		}).Info("📱 device login")
 
 	case 0x12:
 		lat := parseCoordinate(data[10:14])
 		lon := parseCoordinate(data[14:18])
 
-		fmt.Println("📍 GPS DATA")
-		fmt.Println("   Latitude :", lat)
-		fmt.Println("   Longitude:", lon)
-		fmt.Println("   Maps     : https://maps.google.com/?q=",
-			lat, ",", lon)
+		log.WithFields(logrus.Fields{
+			"protocol":  "GPS",
+			"latitude":  lat,
+			"longitude": lon,
+			"maps":      "https://maps.google.com/?q=" + formatLatLon(lat, lon),
+		}).Info("📍 gps data received")
+
+	default:
+		log.WithFields(logrus.Fields{
+			"protocol": protocol,
+			"raw":      hex.EncodeToString(data),
+		}).Warn("unknown protocol")
 	}
 }
 
@@ -42,4 +56,8 @@ func parseCoordinate(b []byte) float64 {
 
 func parseIMEI(b []byte) string {
 	return hex.EncodeToString(b)
+}
+
+func formatLatLon(lat, lon float64) string {
+	return fmt.Sprintf("%f,%f", lat, lon)
 }

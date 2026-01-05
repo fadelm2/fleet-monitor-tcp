@@ -2,40 +2,60 @@ package main
 
 import (
 	"encoding/hex"
-	"fmt"
+	"github.com/sirupsen/logrus"
 	"net"
 )
 
 func main() {
 	listener, err := net.Listen("tcp", ":9000")
 	if err != nil {
-		panic(err)
+		log.WithError(err).Fatal("failed to start TCP server")
 	}
-	fmt.Println("🚀 TCP Server running on :9000")
+
+	log.WithField("port", 9000).
+		Info("🚀 TCP Server started")
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
+			log.WithError(err).Warn("failed to accept connection")
 			continue
 		}
-		fmt.Println("🔌 Connected:", conn.RemoteAddr())
+
+		log.WithFields(logrus.Fields{
+			"remote": conn.RemoteAddr().String(),
+		}).Info("🔌 Client connected")
+
 		go handleConn(conn)
 	}
 }
 
 func handleConn(conn net.Conn) {
-	defer conn.Close()
+	defer func() {
+		log.WithField("remote", conn.RemoteAddr().String()).
+			Info("❌ Client disconnected")
+		conn.Close()
+	}()
+
 	buf := make([]byte, 1024)
 
 	for {
 		n, err := conn.Read(buf)
 		if err != nil {
-			fmt.Println("❌ Disconnected:", conn.RemoteAddr())
+			log.WithError(err).
+				WithField("remote", conn.RemoteAddr().String()).
+				Warn("read error")
 			return
 		}
 
 		data := buf[:n]
-		fmt.Println("📦 RAW:", hex.EncodeToString(data))
+
+		log.WithFields(logrus.Fields{
+			"remote": conn.RemoteAddr().String(),
+			"bytes":  n,
+			"raw":    hex.EncodeToString(data),
+		}).Debug("📦 packet received")
+
 		ParseAndLog(data)
 	}
 }
